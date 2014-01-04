@@ -1488,10 +1488,22 @@ namespace KMPServer
                     {
                         ClientMessage message;
 
-                        if (clientMessageQueue.TryDequeue(out message))
+                        if (clientMessageQueue.TryDequeue(out message)) {
+							Stopwatch handleMessageTime = new Stopwatch();
+							handleMessageTime.Reset();
+							handleMessageTime.Start();
                             handleMessage(message.client, message.id, message.data);
+							handleMessageTime.Stop();
+							if (handleMessageTime.ElapsedMilliseconds > 10) {
+								Log.Debug("Long message handle, ID:" + message.id + ", length: "+ message.data.Length + " time: " + handleMessageTime.ElapsedMilliseconds + "ms.");
+							}
+
+						}
                         else
+						{
+							Log.Debug("Broke out of handle connection thread");
                             break;
+						}
                     }
 
                     List<Client> disconnectedClients = new List<Client>();
@@ -3989,6 +4001,7 @@ namespace KMPServer
 
         public void cleanDatabase()
         {
+			Stopwatch dbstopwatch = new Stopwatch();
 			var universeDB = KMPServer.Server.universeDB;
 			if (settings.useMySQL) {
 				universeDB = new MySqlConnection(settings.mySQLConnString);
@@ -4002,6 +4015,9 @@ namespace KMPServer
 				
 				if (activeClientCount() > 0)
 				{
+					dbstopwatch.Stop();
+					dbstopwatch.Reset();
+					dbstopwatch.Start();
 					//Get the oldest tick for an active player
 					double earliestClearTick = -1d;
 					
@@ -4014,7 +4030,11 @@ namespace KMPServer
 		                double clientTick = Convert.ToDouble(cmd.ExecuteScalar());
 						if (earliestClearTick < 0d || clientTick < earliestClearTick) earliestClearTick = clientTick;
 					}
-					
+					dbstopwatch.Stop();
+					Log.Debug("Clean Database Query 1 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
+					dbstopwatch.Stop();
+					dbstopwatch.Reset();
+					dbstopwatch.Start();
 					//Clear anything before that
 					DbCommand cmd2 = universeDB.CreateCommand();
 	                string sql2 = "DELETE FROM kmpSubspace WHERE LastTick < @minTick AND LastTick < (SELECT Tick FROM (SELECT MIN(s.LastTick) Tick FROM kmpSubspace s" +
@@ -4023,9 +4043,14 @@ namespace KMPServer
 					cmd2.Parameters.AddWithValue("minTick", earliestClearTick);
 	                cmd2.CommandText = sql2;
 	                cmd2.ExecuteNonQuery();
+					dbstopwatch.Stop();
+					Log.Debug("Clean Database Query 2 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
 				}
 				else
 				{
+					dbstopwatch.Stop();
+					dbstopwatch.Reset();
+					dbstopwatch.Start();
 					//Clear all but the latest subspace
 	                DbCommand cmd = universeDB.CreateCommand();
 	                string sql = "DELETE FROM kmpSubspace WHERE LastTick < (SELECT Tick FROM (SELECT MIN(s.LastTick) Tick FROM kmpSubspace s" +
@@ -4036,16 +4061,23 @@ namespace KMPServer
 	                    " WHERE ID IN (SELECT Subspace FROM kmpVesselUpdate vu2 WHERE vu2.Guid = vu.Guid)))) a);";
 	                cmd.CommandText = sql;
 	                cmd.ExecuteNonQuery();
+					dbstopwatch.Stop();
+					Log.Debug("Clean Database Query 3 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
 				}
 				
 				if (!settings.useMySQL)
 				{
 					lock (databaseVacuumLock)
 					{
+						dbstopwatch.Stop();
+						dbstopwatch.Reset();
+						dbstopwatch.Start();
 		                DbCommand cmd = universeDB.CreateCommand();
 		                string sql = "VACUUM;";
 		                cmd.CommandText = sql;
 		                cmd.ExecuteNonQuery();
+						dbstopwatch.Stop();
+						Log.Debug("Clean Database Query 4 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
 					}
 				}
 
