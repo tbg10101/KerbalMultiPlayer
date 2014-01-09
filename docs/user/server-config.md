@@ -6,7 +6,7 @@ Installing
   
 1. Extract KMPServer into a folder. If you're reading this you probably got this far already.  
   
-2. Copy these three files into the KMP Server folder:  
+2. Copy these three files from KSP_folder/KSP_Data/Managed/ into the KMP Server folder:  
   * Assembly-CSharp.dll  
   * Assembly-CSharp-firstpass.dll  
   * UnityEngine.dll  
