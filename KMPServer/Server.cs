@@ -2625,7 +2625,8 @@ namespace KMPServer
         {
 
 			Stopwatch dbstopwatch = new Stopwatch ();
-
+			Stopwatch dbstopwatch2 = new Stopwatch ();
+			Stopwatch dbstopwatch3 = new Stopwatch ();
             if (!cl.warping)
             {
 				dbstopwatch.Stop();
@@ -2639,10 +2640,14 @@ namespace KMPServer
 				dbstopwatch.Reset();
 				dbstopwatch.Start();
 				var universeDB = KMPServer.Server.universeDB;
+				dbstopwatch2.Stop();
+				dbstopwatch2.Reset();
+				dbstopwatch2.Start();
 				if (settings.useMySQL) {
 					universeDB = new MySqlConnection(settings.mySQLConnString);
 					universeDB.Open();
 				}
+
                 DbCommand cmd = universeDB.CreateCommand();
                 string sql = "SELECT  vu.UpdateMessage, v.ProtoVessel, v.Private, v.OwnerID" +
                     " FROM kmpVesselUpdate vu" +
@@ -2659,11 +2664,21 @@ namespace KMPServer
                 cmd.Parameters.AddWithValue("curSubspaceID", cl.currentSubspaceID.ToString("D"));
                 if (excludeOwnActive) cmd.Parameters.AddWithValue("curVessel", cl.currentVessel);
                 DbDataReader reader = cmd.ExecuteReader();
+				dbstopwatch2.Stop();
+				Log.Debug("sendSubspace actual SQL query took " + dbstopwatch2.ElapsedMilliseconds.ToString() + "ms to complete.");
+				dbstopwatch2.Stop();
+				dbstopwatch2.Reset();
+				dbstopwatch2.Start();
                 try
                 {
                     while (reader.Read())
                     {
+						dbstopwatch3.Stop();
+						dbstopwatch3.Reset();
+						dbstopwatch3.Start();
                         KMPVesselUpdate vessel_update = (KMPVesselUpdate)ByteArrayToObject(GetDataReaderBytes(reader, 0));
+						dbstopwatch3.Stop();
+						Log.Debug("sendSubspace actual while loop BATO took " + dbstopwatch3.ElapsedMilliseconds.ToString() + "ms to complete.");
                         ConfigNode protoVessel = (ConfigNode)ByteArrayToObject(GetDataReaderBytes(reader, 1));
                         vessel_update.state = State.INACTIVE;
                         vessel_update.isPrivate = reader.GetBoolean(2);
@@ -2671,14 +2686,26 @@ namespace KMPServer
                         vessel_update.setProtoVessel(protoVessel);
                         vessel_update.isSyncOnlyUpdate = true;
                         vessel_update.distance = 0;
+						dbstopwatch3.Stop();
+						dbstopwatch3.Reset();
+						dbstopwatch3.Start();
                         byte[] update = ObjectToByteArray(vessel_update);
+						dbstopwatch3.Stop();
+						Log.Debug("sendSubspace actual while loop OTBA took " + dbstopwatch3.ElapsedMilliseconds.ToString() + "ms to complete.");
+						dbstopwatch3.Stop();
+						dbstopwatch3.Reset();
+						dbstopwatch3.Start();
                         sendVesselMessage(cl, update);
+						dbstopwatch3.Stop();
+						Log.Debug("sendSubspace actual while loop sendVesselMessage took " + dbstopwatch3.ElapsedMilliseconds.ToString() + "ms to complete.");
                     }
                 }
                 finally
                 {
                     reader.Close();
                 }
+				dbstopwatch2.Stop();
+				Log.Debug("sendSubspace actual while query took " + dbstopwatch2.ElapsedMilliseconds.ToString() + "ms to complete.");
 				if (settings.useMySQL) universeDB.Close();
 				dbstopwatch.Stop();
 				Log.Debug("sendSubspace Query 1 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
@@ -2896,6 +2923,10 @@ namespace KMPServer
 
         public static byte[] buildMessageArray(KMPCommon.ServerMessageID id, byte[] data)
         {
+			Stopwatch bmastopwatch = new Stopwatch ();
+			bmastopwatch.Stop();
+			bmastopwatch.Reset();
+			bmastopwatch.Start();
             //Construct the byte array for the message
             byte[] compressed_data = null;
             int msg_data_length = 0;
@@ -2913,7 +2944,8 @@ namespace KMPServer
             KMPCommon.intToBytes(msg_data_length).CopyTo(message_bytes, 4);
             if (compressed_data != null)
                 compressed_data.CopyTo(message_bytes, KMPCommon.MSG_HEADER_LENGTH);
-
+						bmastopwatch.Stop ();
+			Log.Debug("buildMessageArray took " + bmastopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
             return message_bytes;
         }
 
