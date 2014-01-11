@@ -1495,7 +1495,11 @@ namespace KMPServer
                             handleMessage(message.client, message.id, message.data);
 							handleMessageTime.Stop();
 							if (handleMessageTime.ElapsedMilliseconds > 10) {
-								Log.Debug("Long message handle, ID:" + message.id + ", length: "+ message.data.Length + " time: " + handleMessageTime.ElapsedMilliseconds + "ms.");
+								if ( message.data == null ) {
+									Log.Debug("Long NULL message handle, ID:" + message.id + " time: " + handleMessageTime.ElapsedMilliseconds + "ms.");
+								} else {
+									Log.Debug("Long message handle, ID:" + message.id + ", length: "+ message.data.Length + " time: " + handleMessageTime.ElapsedMilliseconds + "ms.");
+								}
 							}
 
 						}
