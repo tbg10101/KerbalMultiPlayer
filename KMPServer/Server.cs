@@ -2031,6 +2031,7 @@ namespace KMPServer
         private void HandleSSync(Client cl, byte[] data)
         {
             int subspaceID = KMPCommon.intFromBytes(data, 0);
+			Stopwatch dbstopwatch = new Stopwatch ();
             if (subspaceID == -1)
             {
                 //Latest available subspace sync request
@@ -2039,6 +2040,9 @@ namespace KMPServer
 				universeDB = new MySqlConnection(settings.mySQLConnString);
 				universeDB.Open();
 			}
+				dbstopwatch.Stop();
+				dbstopwatch.Reset();
+				dbstopwatch.Start();
                 DbCommand cmd = universeDB.CreateCommand();
                 string sql = "SELECT ss1.ID FROM kmpSubspace ss1 LEFT JOIN kmpSubspace ss2 ON ss1.LastTick < ss2.LastTick WHERE ss2.ID IS NULL;";
                 cmd.CommandText = sql;
@@ -2054,11 +2058,18 @@ namespace KMPServer
                 {
                     reader.Close();
                 }
+				dbstopwatch.Stop();
+				Log.Debug("HandleSSync Query 1 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
 				if (settings.useMySQL) universeDB.Close();
             }
             cl.currentSubspaceID = subspaceID;
             Log.Info("{0} sync request to subspace {1}", cl.username, subspaceID);
+			dbstopwatch.Stop();
+			dbstopwatch.Reset();
+			dbstopwatch.Start();
             sendSubspace(cl, true);
+			dbstopwatch.Stop();
+			Log.Debug("HandleSSync sendSubspace took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
         }
 
 		private void HandleTimeSync(Client cl, byte[] data)
@@ -2612,10 +2623,21 @@ namespace KMPServer
 
         private void sendSubspace(Client cl, bool excludeOwnActive = false, bool sendTimeSync = true)
         {
+
+			Stopwatch dbstopwatch = new Stopwatch ();
+
             if (!cl.warping)
             {
+				dbstopwatch.Stop();
+				dbstopwatch.Reset();
+				dbstopwatch.Start();
                 if (sendTimeSync) sendSubspaceSync(cl);
+				dbstopwatch.Stop();
+				Log.Debug("sendSubspace sendTimeSync (if run) took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
                 Log.Activity("Sending all vessels in current subspace for " + cl.username);
+				dbstopwatch.Stop();
+				dbstopwatch.Reset();
+				dbstopwatch.Start();
 				var universeDB = KMPServer.Server.universeDB;
 				if (settings.useMySQL) {
 					universeDB = new MySqlConnection(settings.mySQLConnString);
@@ -2658,8 +2680,20 @@ namespace KMPServer
                     reader.Close();
                 }
 				if (settings.useMySQL) universeDB.Close();
+				dbstopwatch.Stop();
+				Log.Debug("sendSubspace Query 1 took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
+				dbstopwatch.Stop();
+				dbstopwatch.Reset();
+				dbstopwatch.Start();
 				if (sendTimeSync) sendScenarios(cl);
+				dbstopwatch.Stop();
+				Log.Debug("sendSubspace sendScenarios took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
+				dbstopwatch.Stop();
+				dbstopwatch.Reset();
+				dbstopwatch.Start();
                 sendSyncCompleteMessage(cl);
+				dbstopwatch.Stop();
+				Log.Debug("sendSubspace sendSyncCompleteMessage took " + dbstopwatch.ElapsedMilliseconds.ToString() + "ms to complete.");
             }
         }
 
