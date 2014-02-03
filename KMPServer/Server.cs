@@ -2110,6 +2110,7 @@ namespace KMPServer
             {
                 if (rate > 1.1f)
                 {
+                    cl.syncing = true;
                     cl.warping = true;
                     cl.currentSubspaceID = -1;
                     Log.Activity("{0} is warping", cl.username);
@@ -3339,7 +3340,7 @@ namespace KMPServer
             byte[] owned_message_bytes = buildMessageArray(KMPCommon.ServerMessageID.PLUGIN_UPDATE, owned_data);
             byte[] past_message_bytes = buildMessageArray(KMPCommon.ServerMessageID.PLUGIN_UPDATE, past_data);
 
-            foreach (var client in clients.ToList().Where(c => c != cl && c.isReady && c.activityLevel != Client.ActivityLevel.INACTIVE))
+            foreach (var client in clients.ToList().Where(c => c != cl && !c.syncing && c.isReady && c.activityLevel != Client.ActivityLevel.INACTIVE))
             {
                 if ((client.currentSubspaceID == cl.currentSubspaceID)
                     && !client.warping && !cl.warping
@@ -3643,6 +3644,7 @@ namespace KMPServer
         {
             byte[] message_bytes = buildMessageArray(KMPCommon.ServerMessageID.SYNC_COMPLETE, null);
             cl.queueOutgoingMessage(message_bytes);
+            cl.syncing = false;
         }
 
         private void sendVesselMessage(Client cl, byte[] data)

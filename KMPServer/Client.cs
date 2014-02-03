@@ -42,6 +42,7 @@ namespace KMPServer
 		public double syncOffset = 0.01d;
 		public int lagWarning = 0;
 		public bool warping = false;
+		public bool syncing = true;
 		public bool hasReceivedScenarioModules = false;
 		public float averageWarpRate = 1f;
 		
