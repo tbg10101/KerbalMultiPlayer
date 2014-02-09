@@ -3105,18 +3105,24 @@ namespace KMPServer
 
         private void sendPluginUpdateToAll(byte[] data, bool secondaryUpdate, Client cl = null)
         {
+            Stopwatch sputaStopwatch = new Stopwatch();
+            sputaStopwatch.Stop();
+            sputaStopwatch.Reset();
+            sputaStopwatch.Start();
             //Extract the KMPVesselUpdate & ProtoVessel, if present, for universe DB
 			var universeDB = KMPServer.Server.universeDB;
 			if (settings.useMySQL) {
 				universeDB = new MySqlConnection(settings.mySQLConnString);
 				universeDB.Open();
 			}
+            Log.Debug("sputa Connection open time: " + sputaStopwatch.ElapsedMilliseconds);
             byte[] infoOnly_data = new byte[data.Length];
             byte[] owned_data = new byte[data.Length];
             byte[] past_data = new byte[data.Length];
             data.CopyTo(infoOnly_data, 0);
             data.CopyTo(owned_data, 0);
             data.CopyTo(past_data, 0);
+            Log.Debug("sputa Data copy time: " + sputaStopwatch.ElapsedMilliseconds);
             String[] vessel_info = null;
             int OwnerID = -1;
             try
@@ -3138,6 +3144,7 @@ namespace KMPServer
 
                         //Log.Info("Unpacked update from tick=" + vessel_update.tick + " @ client tick=" + cl.lastTick);
                         ConfigNode node = vessel_update.getProtoVesselNode();
+                        Log.Debug("gpvn time: " + sputaStopwatch.ElapsedMilliseconds);
                         if (node != null)
                         {
                             byte[] protoVesselBlob = ObjectToByteArray(node);
@@ -3148,6 +3155,7 @@ namespace KMPServer
                             cmd.Parameters.AddWithValue("kmpID", vessel_update.kmpID);
                             object result = cmd.ExecuteScalar();
                             cmd.Dispose();
+                            Log.Debug("SQL1 time: " + sputaStopwatch.ElapsedMilliseconds);
                             if (result == null)
                             {
                                 Log.Info("New vessel {0} from {1} added to universe", vessel_update.kmpID, cl.username);
@@ -3164,6 +3172,7 @@ namespace KMPServer
                                 cmd.CommandText = sql;
                                 cmd.ExecuteNonQuery();
                                 cmd.Dispose();
+                                Log.Debug("SQL2 time: " + sputaStopwatch.ElapsedMilliseconds);
                             }
                             else
                             {
@@ -3181,6 +3190,7 @@ namespace KMPServer
                                     cmd.CommandText = sql;
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL3 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 }
                                 else
                                 {
@@ -3197,6 +3207,7 @@ namespace KMPServer
                                     cmd.CommandText = sql;
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL4 time: " + sputaStopwatch.ElapsedMilliseconds);
                                     bool emptySubspace = true;
                                     foreach (Client client in clients.ToList())
                                     {
@@ -3215,6 +3226,7 @@ namespace KMPServer
                                         cmd.Parameters.AddWithValue("curSubspace", cl.currentSubspaceID.ToString("D"));
                                         cmd.ExecuteNonQuery();
                                         cmd.Dispose();
+                                        Log.Debug("SQL5 time: " + sputaStopwatch.ElapsedMilliseconds);
                                     }
                                 }
                             }
@@ -3230,6 +3242,7 @@ namespace KMPServer
                                     cmd.Parameters.AddWithValue("curVessel", cl.currentVessel);
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL6 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 }
                                 catch { }
 
@@ -3249,6 +3262,7 @@ namespace KMPServer
                             cmd.Parameters.AddWithValue("kmpID", vessel_update.kmpID);
                             object result = cmd.ExecuteScalar();
                             cmd.Dispose();
+                            Log.Debug("SQL7 time: " + sputaStopwatch.ElapsedMilliseconds);
                             if (result != null)
                             {
                                 int current_subspace = Convert.ToInt32(result);
@@ -3264,6 +3278,7 @@ namespace KMPServer
                                     cmd.Parameters.AddWithValue("kmpID", vessel_update.kmpID);
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL8 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 }
                                 else
                                 {
@@ -3279,6 +3294,7 @@ namespace KMPServer
                                     cmd.Parameters.AddWithValue("kmpID", vessel_update.kmpID);
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL9 time: " + sputaStopwatch.ElapsedMilliseconds);
                                     bool emptySubspace = true;
                                     foreach (Client client in clients.ToList())
                                     {
@@ -3297,6 +3313,7 @@ namespace KMPServer
                                         cmd.Parameters.AddWithValue("curSubspace", cl.currentSubspaceID.ToString("D"));
                                         cmd.ExecuteNonQuery();
                                         cmd.Dispose();
+                                        Log.Debug("SQL10 time: " + sputaStopwatch.ElapsedMilliseconds);
                                     }
                                 }
                             }
@@ -3312,22 +3329,25 @@ namespace KMPServer
                                     cmd.Parameters.AddWithValue("curVessel", cl.currentVessel);
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL11 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 }
                                 catch { }
-
+                                Log.Debug("before sVSUTA time: " + sputaStopwatch.ElapsedMilliseconds);
                                 sendVesselStatusUpdateToAll(cl, cl.currentVessel);
+                                Log.Debug("after sVSUTA time: " + sputaStopwatch.ElapsedMilliseconds);
                             }
 
 							cl.currentVessel = vessel_update.kmpID;
 						}
 
                         //Store update
+                        Log.Debug("before sVU time: " + sputaStopwatch.ElapsedMilliseconds);
                         storeVesselUpdate(data, cl, vessel_update.kmpID, vessel_update.tick);
-
+                        Log.Debug("after sVU time: " + sputaStopwatch.ElapsedMilliseconds);
                         //Update vessel destroyed status
                         if (checkVesselDestruction(vessel_update, cl))
                             vessel_update.situation = Situation.DESTROYED;
-
+                        Log.Debug("cVD time: " + sputaStopwatch.ElapsedMilliseconds);
                         //Repackage the update for distribution
                         vessel_update.isMine = true;
                         owned_data = ObjectToByteArray(vessel_update);
@@ -3336,6 +3356,7 @@ namespace KMPServer
                         vessel_update.relTime = RelativeTime.PAST;
                         vessel_update.name = vessel_update.name + " [Past]";
                         past_data = ObjectToByteArray(vessel_update);
+                        Log.Debug("after OTBA time: " + sputaStopwatch.ElapsedMilliseconds);
                     }
                 }
                 else if (cl != null)
@@ -3365,7 +3386,7 @@ namespace KMPServer
                             }
                             catch { }
                             cmd.Dispose();
-
+                            Log.Debug("SQL12 time: " + sputaStopwatch.ElapsedMilliseconds);
                             if (!active || OwnerID == cl.playerID) //Inactive vessel or this player was last in control of it
                             {
                                 if (vessel_update.getProtoVesselNode() != null)
@@ -3380,6 +3401,7 @@ namespace KMPServer
                                     cmd.CommandText = sql;
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL13 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 }
                                 if (OwnerID == cl.playerID)
                                 {
@@ -3390,13 +3412,17 @@ namespace KMPServer
                                     cmd.Parameters.AddWithValue("kmpID", vessel_update.kmpID);
                                     cmd.ExecuteNonQuery();
                                     cmd.Dispose();
+                                    Log.Debug("SQL14 time: " + sputaStopwatch.ElapsedMilliseconds);
 									sendVesselStatusUpdateToAll(cl, vessel_update.kmpID);
+                                    Log.Debug("sVSUTA2 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 }
                                 //No one else is controlling it, so store the update
                                 storeVesselUpdate(data, cl, vessel_update.kmpID, vessel_update.tick, true);
+                                Log.Debug("sVU2 time: " + sputaStopwatch.ElapsedMilliseconds);
                                 //Update vessel destroyed status
                                 if (checkVesselDestruction(vessel_update, cl))
                                     vessel_update.situation = Situation.DESTROYED;
+                                Log.Debug("after cVD2 time: " + sputaStopwatch.ElapsedMilliseconds);
                             }
                         }
                         catch { }
@@ -3406,6 +3432,7 @@ namespace KMPServer
                         owned_data = ObjectToByteArray(vessel_update);
                         vessel_update.isMine = false;
                         data = ObjectToByteArray(vessel_update);
+                        Log.Debug("after OTBA2 time: " + sputaStopwatch.ElapsedMilliseconds);
                     }
                 }
             }
@@ -3415,12 +3442,12 @@ namespace KMPServer
             }
 			
 			if (settings.useMySQL) universeDB.Close();
-			
+			Log.Debug("SQL Close time: " + sputaStopwatch.ElapsedMilliseconds);
             //Build the message array
             byte[] message_bytes = buildMessageArray(KMPCommon.ServerMessageID.PLUGIN_UPDATE, data);
             byte[] owned_message_bytes = buildMessageArray(KMPCommon.ServerMessageID.PLUGIN_UPDATE, owned_data);
             byte[] past_message_bytes = buildMessageArray(KMPCommon.ServerMessageID.PLUGIN_UPDATE, past_data);
-
+            Log.Debug("bmasomething time: " + sputaStopwatch.ElapsedMilliseconds);
             foreach (var client in clients.ToList().Where(c => c != cl && c.isReady && c.activityLevel != Client.ActivityLevel.INACTIVE))
             {
                 if ((client.currentSubspaceID == cl.currentSubspaceID)
@@ -3456,6 +3483,8 @@ namespace KMPServer
                     client.queueOutgoingMessage(infoOnly_message_bytes);
                 }
             }
+            Log.Debug("after foreach time: " + sputaStopwatch.ElapsedMilliseconds);
+            sputaStopwatch.Stop();
         }
 
         private void storeVesselUpdate(byte[] updateBlob, Client cl, Guid kmpID, double tick, bool isSecondary = false)
