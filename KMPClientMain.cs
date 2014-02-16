@@ -830,6 +830,17 @@ namespace KMP
             switch (id)
             {
                 case KMPCommon.ServerMessageID.HANDSHAKE:
+                    if (data == null) {
+                        Log.Debug("Got a bad null handshake!");
+                        enqueueTextMessage("Got a bad null handshake!");
+                        return;
+                    } else {
+                        if (data.Length == 0) {
+                            Log.Debug("Got a bad byte[0] handshake");
+                            enqueueTextMessage("Got a bad byte[0] handshake!");
+                            return;
+                        }
+		    }
                     Int32 protocol_version = KMPCommon.intFromBytes(data);
 
                     if (data.Length >= 8)
