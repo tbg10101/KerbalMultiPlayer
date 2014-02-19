@@ -2111,17 +2111,12 @@ namespace KMP
                     tcpClient.GetStream().BeginRead(currentMessage, 0, currentBytesToReceive, new AsyncCallback(ReceiveCallback), state);
                 }
             }
-            catch (KSP.IO.IOException e)
-            {
-                Log.Debug("Exception thrown in beginAsyncRead(), catch 1, Exception: {0}", e.ToString());
-            }
-            catch (InvalidOperationException e)
-            {
-                Log.Debug("Exception thrown in beginAsyncRead(), catch 2, Exception: {0}", e.ToString());
-            }
             catch (Exception e)
             {
-                Log.Debug("Exception thrown in beginAsyncRead(), catch 3, Exception: {0}", e.ToString());
+                Log.Debug("Exception thrown in beginAsyncRead(), catch 1, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected somewhere else.
+					gameManager.disconnect("Receive error: " + e.Message.ToString());
+				}
                 passExceptionToMain(e);
             }
         }
@@ -2181,7 +2176,7 @@ namespace KMP
 				//Basically, If anything goes wrong at all the stream is broken and there is no way to recover from it.
 				Log.Debug("Exception thrown in ReceiveCallback(), catch 1, Exception: {0}", e.ToString());
 				if (gameManager.gameRunning) { //We have already been disconnected somewhere else.
-					gameManager.disconnect("Connection error: " + e.Message.ToString());
+					gameManager.disconnect("Receive error: " + e.Message.ToString());
 				}
 			}
 		}
@@ -2370,15 +2365,24 @@ namespace KMP
 			catch (System.InvalidOperationException e)
 			{
 				Log.Debug("Exception thrown in sendOutgoingMessages(), catch 1, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: TCP Send Error");
+				}
 			}
 			// Raised by BeginWrite, can mean socket is down.
 			catch (System.IO.IOException e)
 			{
 				Log.Debug("Exception thrown in sendOutgoingMessages(), catch 2, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: TCP Send Error");
+				}
 			}
 			catch (System.NullReferenceException e)
 			{
 				Log.Debug("Exception thrown in sendOutgoingMessages(), catch 3, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: TCP Send Error");
+				}
 			}
 		
 		}
@@ -2415,7 +2419,7 @@ namespace KMP
 			{
 				Log.Debug("Exception thrown in asyncTCPSend(), catch 1, Exception: {0}", e.ToString());
 				if (gameManager.gameRunning) { //We have already been disconnected
-					gameManager.disconnect ("Disconnected: Send Error");
+					gameManager.disconnect ("Disconnected: TCP Send Error");
 				}
 			}
 		}
@@ -2459,15 +2463,24 @@ namespace KMP
 			catch (System.InvalidOperationException e)
 			{
 				Log.Debug("Exception thrown in sendOutgoingUDPMessages(), catch 1, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: UDP Send Error");
+				}
 			}
 			// Raised by BeginWrite, can mean socket is down.
 			catch (System.IO.IOException e)
 			{
 				Log.Debug("Exception thrown in sendOutgoingUDPMessages(), catch 2, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: UDP Send Error");
+				}
 			}
 			catch (System.NullReferenceException e)
 			{
 				Log.Debug("Exception thrown in sendOutgoingUDPMessages(), catch 3, Exception: {0}", e.ToString());
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: UDP Send Error");
+				}
 			}
 
 		}
@@ -2486,7 +2499,9 @@ namespace KMP
 			catch (Exception e)
 			{
 				Log.Debug("Exception thrown in asyncUDPSend(), catch 1, Exception: {0}", e.ToString());
-				gameManager.disconnect ("Disconnected: Send Error");
+				if (gameManager.gameRunning) { //We have already been disconnected
+					gameManager.disconnect ("Disconnected: UDP Send Error");
+				}
 			}
 		}
 
