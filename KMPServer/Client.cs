@@ -462,7 +462,6 @@ namespace KMPServer
 						case (int)KMPCommon.ServerMessageID.SERVER_SETTINGS:
 						case (int)KMPCommon.ServerMessageID.KEEPALIVE:
 						case (int)KMPCommon.ServerMessageID.CONNECTION_END:
-						case (int)KMPCommon.ServerMessageID.UDP_ACKNOWLEDGE:
 						case (int)KMPCommon.ServerMessageID.PING_REPLY:
 								queuedOutMessagesHighPriority.Enqueue(message_bytes);
 								break;
