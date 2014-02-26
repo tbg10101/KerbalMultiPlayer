@@ -3310,7 +3310,7 @@ namespace KMP
             Log.Debug("Vessel termination: " + data.vesselID + " " + serverVessels_RemoteID.ContainsKey(data.vesselID) + " " + (HighLogic.LoadedScene == GameScenes.TRACKSTATION) + " " + (data.vesselType == VesselType.Debris || (serverVessels_IsMine.ContainsKey(data.vesselID) ? serverVessels_IsMine[data.vesselID] : true)));
 			if (serverVessels_RemoteID.ContainsKey(data.vesselID) //"activeTermination" only if this is remote vessel
 			    && HighLogic.LoadedScene == GameScenes.TRACKSTATION //and at TrackStation
-			    && (data.vesselType == VesselType.Debris || (serverVessels_IsMine.ContainsKey(data.vesselID) ? serverVessels_IsMine[data.vesselID] : true))) //and is debris or owned vessel
+			    && (data.vesselType == VesselType.Debris || (serverVessels_IsMine.ContainsKey(data.vesselID) ? serverVessels_IsMine[data.vesselID] : true) || (serverVessels_IsPrivate.ContainsKey(data.vesselID) ? !serverVessels_IsPrivate[data.vesselID] : false))) //and is debris or owned vessel or public vessel
 			{
 				activeTermination = true;
 			}
@@ -3327,7 +3327,7 @@ namespace KMP
 			    	&& ((isInFlight && data.id == FlightGlobals.ActiveVessel.id) //and is in-flight/ours OR
 			    	|| (HighLogic.LoadedScene == GameScenes.TRACKSTATION //still at trackstation
 			    			&& activeTermination //and activeTermination is set
-			    			&& (data.vesselType == VesselType.Debris || (serverVessels_IsMine.ContainsKey(data.id) ? serverVessels_IsMine[data.id] : true))))) //and target is debris or owned vessel
+				    && (data.vesselType == VesselType.Debris || (serverVessels_IsMine.ContainsKey(data.id) ? serverVessels_IsMine[data.id] : true) || (serverVessels_IsPrivate.ContainsKey(data.id) ? !serverVessels_IsPrivate[data.id] : false))))) //and target is debris or owned vessel or public vessel
 				{
 					activeTermination = false;
 					Log.Debug("Vessel destroyed: " + data.id);
