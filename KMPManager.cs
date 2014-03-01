@@ -2738,7 +2738,7 @@ namespace KMP
 						if (body.atmosphere && body.maxAtmosphereAltitude > protovessel.altitude)
 						{
 							//In-atmo vessel--only load if within visible range
-							if (distance > 500d)
+							if (distance > 2400d)
 								return;
 						}
 					}
