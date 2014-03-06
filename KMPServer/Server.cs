@@ -1432,17 +1432,38 @@ namespace KMPServer
                 long lastMessageBreak;
                 bool shouldOptimizeQueue = false;
                 Log.Debug("Starting disconnect thread");
-
+                Stopwatch handleTimer = new Stopwatch();
+                Stopwatch breakTimer = new Stopwatch();
+                int handledMessages = 0;
                 while (true)
                 {
                     lastMessageBreak = stopwatch.ElapsedMilliseconds;
                     //Handle received messages
+                    breakTimer.Start();
+                    handledMessages = 0;
                     while (clientMessageQueue.Count > 0)
                     {
                         ClientMessage message;
 
                         if (clientMessageQueue.TryDequeue(out message))
+                        {
+                            handledMessages++;
+                            handleTimer.Start();
                             handleMessage(message.client, message.id, message.data);
+                            handleTimer.Stop();
+                            if (handleTimer.ElapsedMilliseconds > 5)
+                            {
+                                if (message.data != null)
+                                {
+                                    Log.Debug("Long message handle time: " + message.id.ToString() + ", message length: " + message.data.Length + ", time:" + handleTimer.ElapsedMilliseconds + " ms.");
+                                }
+                                else
+                                {
+                                    Log.Debug("Long message handle time: " + message.id.ToString() + ", null message, time:" + handleTimer.ElapsedMilliseconds + " ms.");
+                                }
+                            }
+                            handleTimer.Reset();
+                        }
                         else
                             break;
 
@@ -1459,7 +1480,12 @@ namespace KMPServer
                         optimizeIncomingMessageQueue();
                         shouldOptimizeQueue = false;
                     }
-
+                    breakTimer.Stop();
+                    if (breakTimer.ElapsedMilliseconds > 10)
+                    {
+                        Log.Debug("Long break time, handled " + handledMessages + " messages in " + breakTimer.ElapsedMilliseconds + " ms.");
+                    }
+                    breakTimer.Reset();
                     List<Client> disconnectedClients = new List<Client>();
                     List<Client> markedClients = cleanupClients.ToList();
                     cleanupClients.Clear();
@@ -2004,6 +2030,15 @@ namespace KMPServer
 
                         case KMPCommon.ClientMessageID.SYNC_TIME:
                             HandleTimeSync(cl, data);
+							break;
+						case KMPCommon.ClientMessageID.KEEPALIVE:
+							break;
+						default:
+							if ((int)id <= Enum.GetNames(typeof(KMPCommon.ClientMessageID)).Count()) {
+								Log.Debug("[WARNING] UNKNOWN MESSAGE TYPE: " + id.ToString());
+							} else {
+								Log.Debug("[WARNING] UNKNOWN MESSAGE TYPE: " + (int)id);
+							}
                             break;
                     }
                 }
