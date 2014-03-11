@@ -113,7 +113,11 @@ namespace KMP
         public static TcpClient tcpClient;
         public static long lastKeepAliveSendTime;
         public static long lastTCPMessageSendTime;
+<<<<<<< HEAD
         public static long lastProbeTime;
+=======
+        public static long lastTCPKeepaliveTime;
+>>>>>>> connection-improvement
         public static bool quitHelperMessageShow;
         public static int reconnectAttempts;
 
@@ -1485,7 +1489,11 @@ namespace KMP
                         queueOutgoingMessage(KMPCommon.ClientMessageID.KEEPALIVE, null);
                     }
 
+<<<<<<< HEAD
+                    //Handle received messages
+=======
                     //Handle received messages. Break every 100ms to avoid severe FPS lag.
+>>>>>>> connection-improvement
                     long receiveMaxTimer = stopwatch.ElapsedMilliseconds + 100;
                     while (receivedMessageQueue.Count > 0 && stopwatch.ElapsedMilliseconds < receiveMaxTimer)
                     {
@@ -1493,12 +1501,54 @@ namespace KMP
                         message = receivedMessageQueue.Dequeue();
                         handleMessage(message.id, message.data);
                     }
+<<<<<<< HEAD
+                    if (stopwatch.ElapsedMilliseconds - lastProbeTime > PROBE_INTERVAL) {
+                        lastProbeTime = stopwatch.ElapsedMilliseconds;
+                        sendProbeMessage(true);
+=======
                     if (receivedMessageQueue.Count > 0) {
                         Log.Debug("Exited received queue early, messages left: " + receivedMessageQueue.Count);
                     }
-                    if (stopwatch.ElapsedMilliseconds - lastProbeTime > PROBE_INTERVAL) {
-                        lastProbeTime = stopwatch.ElapsedMilliseconds;
-                        sendProbeMessage();
+
+                    if (udpClient != null && handshakeCompleted)
+                    {
+
+                        //Update the status of the udp connection
+                        long last_udp_ack = 0;
+                        long last_udp_send = 0;
+                        lock (udpTimestampLock)
+                        {
+                            last_udp_ack = lastUDPAckReceiveTime;
+                            last_udp_send = lastUDPMessageSendTime;
+                        }
+
+                        bool udp_should_be_connected =
+                            last_udp_ack > 0 && (stopwatch.ElapsedMilliseconds - last_udp_ack) < UDP_TIMEOUT_DELAY;
+
+                        if (udpConnected != udp_should_be_connected)
+                        {
+                            if (udp_should_be_connected)
+                                enqueueTextMessage("UDP connection established.", false, true);
+                            else
+                                enqueueTextMessage("UDP connection lost.", false, true);
+
+                            udpConnected = udp_should_be_connected;
+                            if ((stopwatch.ElapsedMilliseconds - last_udp_ack) > UDP_TIMEOUT_DELAY * 10)
+                                throw new Exception("UDP connection lost and could not be reconnected.");
+                        }
+
+                        //Send a probe message to try to establish a udp connection
+                        if ((stopwatch.ElapsedMilliseconds - lastUDPProbeTime) > UDP_PROBE_DELAY) {
+                            if ((stopwatch.ElapsedMilliseconds - last_udp_send) > UDP_TIMEOUT_DELAY)
+                            {
+                                sendUDPProbeMessage(true);
+                            }
+                            else
+                            {
+                                sendUDPProbeMessage(false);
+                            }
+                        }
+>>>>>>> connection-improvement
                     }
 					sendOutgoingMessages();
                     Thread.Sleep(SLEEP_TIME);
@@ -2326,18 +2376,88 @@ namespace KMP
 			}
 		}
 
-        private static void sendProbeMessage()
+        private static void sendProbeMessage(bool forceUDP)
         {
+<<<<<<< HEAD
             if (gameManager.lastTick > 0)
             {
             
                 byte[] timeData = new byte[12];
                 BitConverter.GetBytes(gameManager.lastTick).CopyTo(timeData, 0);
-                BitConverter.GetBytes(gameManager.listClientTimeWarpAverage).CopyTo(timeData, 8);
+                BitConverter.GetBytes(gameManager.AverageClientTimeWarp).CopyTo(timeData, 8);
                 queueOutgoingMessage(KMPCommon.ClientMessageID.PROBE, timeData);
+=======
+            byte[] timeData = new byte[12];
+            if (gameManager.lastTick > 0)
+            {
+                BitConverter.GetBytes(gameManager.lastTick).CopyTo(timeData, 0);
+                BitConverter.GetBytes(gameManager.listClientTimeWarpAverage).CopyTo(timeData, 8);
+
+                if (udpConnected || forceUDP)//Always try UDP periodically
+                {
+                    queueOutgoingUDPMessage(KMPCommon.ClientMessageID.UDP_PROBE, timeData);
+                }
+                else
+                {
+                    queueOutgoingMessage(KMPCommon.ClientMessageID.UDP_PROBE, timeData);
+                }
+>>>>>>> connection-improvement
             }
         }
 
+<<<<<<< HEAD
+=======
+		private static void sendOutgoingUDPMessages() {
+			try
+			{
+				lock (sendOutgoingUDPMessagesLock) {
+					if (queuedOutUDPMessages.Count > 0 && !isClientSendingUDPData)
+					{
+						byte[] next_message = null;
+						next_message = queuedOutUDPMessages.Dequeue();
+						if (next_message != null) {
+							isClientSendingUDPData = true;
+							udpClient.BeginSend(next_message, next_message.Length, new AsyncCallback(asyncUDPSend), next_message);
+						}
+					}
+				}
+			}
+			// Socket closed or not connected.
+			catch (System.InvalidOperationException e)
+			{
+				Log.Debug("Exception thrown in sendOutgoingUDPMessages(), catch 1, Exception: {0}", e.ToString());
+			}
+			// Raised by BeginWrite, can mean socket is down.
+			catch (System.IO.IOException e)
+			{
+				Log.Debug("Exception thrown in sendOutgoingUDPMessages(), catch 2, Exception: {0}", e.ToString());
+			}
+			catch (System.NullReferenceException e)
+			{
+				Log.Debug("Exception thrown in sendOutgoingUDPMessages(), catch 3, Exception: {0}", e.ToString());
+			}
+
+		}
+
+		private static void asyncUDPSend(IAsyncResult result)
+		{
+			try
+			{
+				udpClient.EndSend(result);
+				lastUDPMessageSendTime = stopwatch.ElapsedMilliseconds;
+				isClientSendingUDPData = false;
+				if (queuedOutUDPMessages.Count > 0) {
+					sendOutgoingUDPMessages();
+				}
+			}
+			catch (Exception e)
+			{
+				Log.Debug("Exception thrown in asyncUDPSend(), catch 1, Exception: {0}", e.ToString());
+				gameManager.disconnect ("Disconnected: Send Error");
+			}
+		}
+
+>>>>>>> connection-improvement
         private static byte[] buildMessageByteArray(KMPCommon.ClientMessageID id, byte[] data, byte[] prefix = null)
         {
             byte[] compressed_data = null;
