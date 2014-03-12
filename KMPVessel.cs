@@ -68,36 +68,41 @@ namespace KMP
 				if (!orbitValid)
 					return Vector3.zero;
 
-				if (mainBody != null)
-				{
-					if (situationIsGrounded(info.situation))
-					{
-						//Vessel is fixed in relation to body
-						return mainBody.transform.TransformPoint(localPosition);
-					}
-					else
-					{
-						//Calculate vessel's position at the current (real-world) time
-						double time = adjustedUT;
+								if (mainBody != null) {
+										//Log.Debug ("WP Local position, X:" + localPosition.x + ", Y: " + localPosition.y + ", Z: " + localPosition.z);
+										//Log.Debug ("WP Body position, X:" + mainBody.position.x + ", Y: " + mainBody.position.y + ", Z: " + mainBody.position.z);
+										//Log.Debug ("WP Both, X:" + (localPosition.x + mainBody.position.x) + ", Y: " + (localPosition.y + mainBody.position.y) + ", Z: " + (localPosition.z + mainBody.position.z));
 
-						if (mainBody.referenceBody != null && mainBody.referenceBody != mainBody && mainBody.orbit != null)
-						{
-							//Adjust for the movement of the vessel's parent body
-							Vector3 body_pos_at_ref = mainBody.orbit.getTruePositionAtUT(time);
-							Vector3 body_pos_now = mainBody.orbit.getTruePositionAtUT(Planetarium.GetUniversalTime());
+										//if (situationIsGrounded (info.situation)) {
+												//Vessel is fixed in relation to body
+												return mainBody.transform.position + localPosition;
+					/*
+										} else {
+												//Calculate vessel's position at the current (real-world) time
 
-							return body_pos_now + (orbitRenderer.driver.orbit.getTruePositionAtUT(time) - body_pos_at_ref);
-						}
-						else
-						{
-							//Vessel is probably orbiting the sun
-							return orbitRenderer.driver.orbit.getTruePositionAtUT(time);
-						}
+												if (mainBody.referenceBody != null && mainBody.referenceBody != mainBody && mainBody.orbit != null) {
+														//Adjust for the movement of the vessel's parent body
+														double timeNow = Planetarium.GetUniversalTime ();
+														Vector3 body_pos_at_ref = mainBody.orbit.getTruePositionAtUT (referenceUT);
+														Log.Debug ("WP reference body position, X:" + body_pos_at_ref.x + ", Y: " + body_pos_at_ref.y + ", Z: " + body_pos_at_ref.z);
+														Vector3 body_pos_now = mainBody.orbit.getTruePositionAtUT (timeNow);
+														Log.Debug ("WP current body position, X:" + body_pos_now.x + ", Y: " + body_pos_now.y + ", Z: " + body_pos_now.z);
+														Log.Debug ("WP UT diff, Ref:" + referenceUT + ", Now: " + timeNow);
+														Log.Debug ("WP Body Diff, X:" + (body_pos_now.x + body_pos_at_ref.x) + ", Y: " + (body_pos_now.y + body_pos_at_ref.y) + ", Z: " + (body_pos_now.z + body_pos_at_ref.z));
+														Vector3 returnPos = body_pos_now + (orbitRenderer.driver.orbit.getTruePositionAtUT (referenceUT) - body_pos_at_ref);
+														Log.Debug ("Returning ADJ, X:" + returnPos.x + ", Y: " + returnPos.y + ", Z: " + returnPos.z);
+														return returnPos;
+												} else {
+														//Vessel is probably orbiting the sun
+														return orbitRenderer.driver.orbit.getTruePositionAtUT (referenceUT);
+												}
 
-					}
-				}
-				else
-					return localPosition;
+										}
+										*/
+								} else {
+										//Log.Debug("Returning local, X:" + localPosition.x + ", Y: " + localPosition.y + ", Z: " + localPosition.z);
+										return localPosition;
+								}
             }
         }
 
@@ -304,16 +309,17 @@ namespace KMP
 			}
 		}
 
-        public void setOrbitalData(CelestialBody body, Vector3 local_pos, Vector3 local_vel, Vector3 local_dir) {
+        public void setOrbitalData(CelestialBody body, Vector3 local_pos, Vector3 local_vel, Vector3 local_dir, double tick) {
 
             mainBody = body;
 
 			if (mainBody != null)
             {
-                localPosition = local_pos;
-                translationFromBody = mainBody.transform.TransformPoint(localPosition) - mainBody.transform.position;
+				localPosition = local_pos;
+                translationFromBody = local_pos;
                 localDirection = local_dir;
                 localVelocity = local_vel;
+				referenceUT = tick;
 
 				orbitValid = true;
 
@@ -375,7 +381,7 @@ namespace KMP
 			if (!orbitValid)
 				return;
 
-            gameObj.transform.localPosition = worldPosition;
+            //gameObj.transform.localPosition = worldPosition;
 
             Vector3 scaled_pos = ScaledSpace.LocalToScaledSpace(worldPosition);
 
@@ -431,20 +437,10 @@ namespace KMP
 				
                 Vector3 orbit_pos = translationFromBody;
                 Vector3 orbit_vel = worldVelocity;
-				
-                //Swap the y and z values of the orbital position/velocities because that's the way it goes?
-                float temp = orbit_pos.y;
-                orbit_pos.y = orbit_pos.z;
-                orbit_pos.z = temp;
-				
-                temp = orbit_vel.y;
-                orbit_vel.y = orbit_vel.z;
-                orbit_vel.z = temp;
-				
+
                 //Update orbit
-                orbitRenderer.driver.orbit.UpdateFromStateVectors(orbit_pos, orbit_vel, mainBody, Planetarium.GetUniversalTime());
+                orbitRenderer.driver.orbit.UpdateFromStateVectors(orbit_pos, orbit_vel, mainBody, referenceUT);
 				
-				referenceUT = Planetarium.GetUniversalTime();
 				referenceFixedTime = UnityEngine.Time.fixedTime;
                 
             }

@@ -1135,8 +1135,7 @@ namespace KMP
 					newFlags[vessel.id] = UnityEngine.Time.realtimeSinceStartup;
 				}
 			}
-			
-			Vector3 pos = vessel.mainBody.transform.InverseTransformPoint(vessel.GetWorldPos3D());
+			Vector3 pos = vessel.transform.position - vessel.mainBody.transform.position;
 			Vector3 dir = vessel.mainBody.transform.InverseTransformDirection(vessel.transform.up);
 			Vector3 vel = vessel.mainBody.transform.InverseTransformDirection(vessel.GetObtVelocity());
 			Vector3d o_vel = vessel.obt_velocity;
@@ -1923,7 +1922,7 @@ namespace KMP
 				Vector3 dir = new Vector3(vessel_update.dir[0], vessel_update.dir[1], vessel_update.dir[2]);
 				Vector3 vel = new Vector3(vessel_update.vel[0], vessel_update.vel[1], vessel_update.vel[2]);
 				vessel.info = vessel_update;
-				vessel.setOrbitalData(update_body, pos, vel, dir);
+				vessel.setOrbitalData(update_body, pos, vel, dir, vessel_update.tick);
 			}
 			
 			Log.Debug("vessel state: " + vessel_update.state.ToString() + ", tick=" + vessel_update.tick + ", realTick=" + Planetarium.GetUniversalTime());
@@ -2043,7 +2042,7 @@ namespace KMP
 											{
 												if (vessel.orbitValid && KMPVessel.situationIsOrbital(vessel_update.situation) && protovessel.altitude > 10000f && protovessel.vesselType != VesselType.Flag && protovessel.vesselType != VesselType.EVA && ourDistance > 2500f)
 												{
-													protovessel = syncOrbit(vessel, vessel_update.tick, protovessel, vessel_update.w_pos[0]);
+													syncOrbit(vessel, ref protovessel);
 					                            }
 												if (protovessel == null)
 												{
@@ -2072,7 +2071,7 @@ namespace KMP
 												    	(vessel_update.relTime == RelativeTime.PRESENT && (ourDistance > (INACTIVE_VESSEL_RANGE+500f))) || 
 						  								(vessel_update.relTime != RelativeTime.PRESENT && Math.Abs(tick-vessel_update.tick) > 1.5d && vessel_update.id != FlightGlobals.ActiveVessel.id))
 													{
-														if (!syncExtantVesselOrbit(vessel,vessel_update.tick,extant_vessel,vessel_update.w_pos[0]))
+														if (!syncExtantVesselOrbit(vessel, extant_vessel))
 														{
 															//Collision!
 															Log.Debug("vessel collided with surface");
@@ -2090,6 +2089,11 @@ namespace KMP
 														Log.Debug("Skipped full update, vessel not loaded");
 														return;
 													}
+													if (extant_vessel.packed && ourDistance < 2500) {
+														Log.Debug("Skipped full update, packed but in load range");
+														return;
+													}
+
 													Log.Debug("full update");
 													if (serverVessels_InPresent.ContainsKey(vessel_update.id) ? !serverVessels_InPresent[vessel_update.id] : true)
 													{
@@ -2099,7 +2103,6 @@ namespace KMP
 															setPartOpacity(part,1f);
 														}
 													}
-													
 													//Update rotation
 													if (extant_vessel.loaded)
 													{
@@ -2129,15 +2132,13 @@ namespace KMP
 															{
 																//Set velocity by surface velocity
 																Vector3d new_srf_vel = new Vector3d(vessel_update.s_vel[0],vessel_update.s_vel[1],vessel_update.s_vel[2]);
-																if (new_srf_vel.sqrMagnitude>1d) extant_vessel.ChangeWorldVelocity((-1 * extant_vessel.srf_velocity) + new_srf_vel);
-																else extant_vessel.ChangeWorldVelocity(-0.99f * extant_vessel.srf_velocity);
+																extant_vessel.ChangeWorldVelocity(new_srf_vel - extant_vessel.srf_velocity);
 															}
 															else
 															{
 																//Set velocity by orbit velocity
 																Vector3d new_obt_vel = new Vector3d(vessel_update.o_vel[0],vessel_update.o_vel[1],vessel_update.o_vel[2]);
-																if (new_obt_vel.sqrMagnitude>1d) extant_vessel.ChangeWorldVelocity((-1 * extant_vessel.obt_velocity) + new_obt_vel);
-																else extant_vessel.ChangeWorldVelocity(-0.99f * extant_vessel.obt_velocity);
+																extant_vessel.ChangeWorldVelocity(new_obt_vel - extant_vessel.obt_velocity);
 															}
 														}
 														
@@ -2151,13 +2152,7 @@ namespace KMP
 																Vector3d newPos = update_body.GetWorldSurfacePosition(vessel_update.w_pos[1],vessel_update.w_pos[2],extant_vessel.altitude+0.001d);
 																if (extant_vessel.packed) extant_vessel.GoOffRails();
 																extant_vessel.distancePackThreshold = Math.Max(extant_vessel.distancePackThreshold,Vector3.Distance(vessel.worldPosition, FlightGlobals.ship_position) + 250f);
-																if ((newPos - extant_vessel.GetWorldPos3D()).sqrMagnitude > 1d) 
-																	extant_vessel.SetPosition(newPos);
-																else if (Vector3.Distance(vessel.worldPosition, extant_vessel.GetWorldPos3D()) > 25f)
-																{
-																	serverVessels_PartCounts[vessel_update.id] = 0;
-																	addRemoteVessel(protovessel,vessel_update.id,vessel,vessel_update);
-																}
+																extant_vessel.SetPosition(newPos);
 															}
 															else if (extant_vessel.loaded && ((!throttled && Vector3.Distance(vessel.worldPosition, extant_vessel.GetWorldPos3D()) > 1
 															         && (extant_vessel.altitude < 10000f || ourDistance > 2500f)) || vessel_update.id == FlightGlobals.ActiveVessel.id))
@@ -2266,13 +2261,14 @@ namespace KMP
 											ProtoVessel protovessel = new ProtoVessel(protoNode, HighLogic.CurrentGame);
 											if (vessel.orbitValid && KMPVessel.situationIsOrbital(vessel_update.situation) && protovessel.vesselType != VesselType.Flag)
 											{
-												protovessel = syncOrbit(vessel, vessel_update.tick, protovessel, vessel_update.w_pos[0]);
+												syncOrbit(vessel, ref protovessel);
 				                            }
 											if (protovessel == null)
 											{
 												Log.Debug("Did not load vessel, has collided with surface");
 												return;
 											}
+											Log.Debug("New Protovessel Parameters, INC: " + protovessel.orbitSnapShot.inclination + ", ECC: " + protovessel.orbitSnapShot.eccentricity + ", SMA: " + protovessel.orbitSnapShot.semiMajorAxis);
 											serverVessels_PartCounts[vessel_update.id] = 0;
 											addRemoteVessel(protovessel, vessel_update.id, vessel, vessel_update, incomingDistance);
 											HighLogic.CurrentGame.CrewRoster.ValidateAssignments(HighLogic.CurrentGame);
@@ -2487,43 +2483,32 @@ namespace KMP
 			}	
 		}
 		
-		private ProtoVessel syncOrbit(KMPVessel kvessel, double fromTick, ProtoVessel protovessel, double LAN)
+		private void syncOrbit(KMPVessel kvessel, ref ProtoVessel protovessel)
 		{
 			Log.Debug("updating OrbitSnapshot");
 			bool killedForCollision = false;
 			double tick = Planetarium.GetUniversalTime();
-			
-            //Update orbit
-			Planetarium.SetUniversalTime(fromTick);
-			
-			Vector3 orbit_pos = kvessel.translationFromBody;
-            Vector3 orbit_vel = kvessel.worldVelocity;
-			
-            //Swap the y and z values of the orbital position/velocities
-            float temp = orbit_pos.y;
-            orbit_pos.y = orbit_pos.z;
-            orbit_pos.z = temp;
-			
-            temp = orbit_vel.y;
-            orbit_vel.y = orbit_vel.z;
-            orbit_vel.z = temp;
-			
-			OrbitDriver orbitDriver = new OrbitDriver();
-			orbitDriver.orbit.UpdateFromStateVectors(orbit_pos, orbit_vel, kvessel.mainBody, fromTick);
-			Orbit newOrbit = orbitDriver.orbit;
-			newOrbit.LAN = LAN;
-			
-			Vessel victim = FlightGlobals.ActiveVessel;
-			OrbitDriver oldDriver = victim.orbitDriver;
-			victim.orbitDriver = orbitDriver;
-			victim.patchedConicSolver.obtDriver = orbitDriver;
-			victim.orbitDriver.UpdateOrbit();
-			victim.patchedConicSolver.Update();
-			
-			newOrbit = victim.patchedConicSolver.orbit;
+
+			Vector3 localPositionTransform = kvessel.localPosition;
+			Vector3 localVelocityTransform = kvessel.localVelocity;
+
+			//Yuck - Looks like we have to swap the Y and Z over.
+			float temp;
+			temp = localPositionTransform.y;
+			localPositionTransform.y = localPositionTransform.z;
+			localPositionTransform.z = temp;
+
+			temp = localVelocityTransform.y;
+			localVelocityTransform.y = localVelocityTransform.z;
+			localVelocityTransform.z = temp;
+
+			Orbit newOrbit = new Orbit ();
+			newOrbit.UpdateFromStateVectors(localPositionTransform, localVelocityTransform, kvessel.mainBody, kvessel.referenceUT);
 			if (newOrbit.referenceBody == null) newOrbit.referenceBody = FlightGlobals.Bodies.Find(b => b.name == "Sun");
-			
-			killedForCollision = checkOrbitForCollision(newOrbit,tick,fromTick);
+			OrbitDriver newOrbitDriver = new OrbitDriver ();
+			newOrbitDriver.orbit = newOrbit;
+			newOrbitDriver.UpdateOrbit();
+			killedForCollision = checkOrbitForCollision(newOrbit,tick,kvessel.referenceUT);
 			
 			if (newOrbit.EndUT > 0)
 			{
@@ -2539,85 +2524,51 @@ namespace KMP
 					Log.Debug("updated to next patch");
 				}
 			}
-			
-			victim.patchedConicSolver.obtDriver = oldDriver;
-			victim.orbitDriver = oldDriver;
-			
-			Planetarium.SetUniversalTime(tick);
-			protovessel.orbitSnapShot = new OrbitSnapshot(newOrbit);
+			Log.Debug ("Orbit INC:" + newOrbit.inclination);
+			Log.Debug ("Orbit ECC:" + newOrbit.eccentricity);
+			Log.Debug ("Orbit SMA:" + newOrbit.semiMajorAxis);
+			//Log.Debug ("New SO POS, X: " + newOrbit.pos.x + ", Y: " + newOrbit.pos.y + ", Z: " + newOrbit.pos.z);
+			//Log.Debug ("New SO VEL, X: " + newOrbit.vel.x + ", Y: " + newOrbit.vel.y + ", Z: " + newOrbit.vel.z);
+			protovessel.orbitSnapShot.argOfPeriapsis = newOrbit.argumentOfPeriapsis;
+			protovessel.orbitSnapShot.eccentricity = newOrbit.eccentricity;
+			protovessel.orbitSnapShot.epoch = newOrbit.epoch;
+			protovessel.orbitSnapShot.inclination = newOrbit.inclination;
+			protovessel.orbitSnapShot.LAN = newOrbit.LAN;
+			protovessel.orbitSnapShot.meanAnomalyAtEpoch = newOrbit.meanAnomalyAtEpoch;
+			protovessel.orbitSnapShot.ReferenceBodyIndex = FlightGlobals.Bodies.FindIndex (b => b == newOrbit.referenceBody);
+			protovessel.orbitSnapShot.semiMajorAxis = newOrbit.semiMajorAxis;
+			//protovessel.orbitSnapShot = new OrbitSnapshot (newOrbit);
+			Log.Debug ("Proto INC:" + protovessel.orbitSnapShot.inclination);
+			Log.Debug ("Proto ECC:" + protovessel.orbitSnapShot.eccentricity);
+			Log.Debug ("Proto SMA:" + protovessel.orbitSnapShot.semiMajorAxis);
+			Log.Debug ("Reference body is : " + protovessel.orbitSnapShot.ReferenceBodyIndex);
 			Log.Debug("OrbitSnapshot updated");
-			if (killedForCollision) return null;
-			else return protovessel;	
+						if (killedForCollision) {
+								protovessel = null;
+						}
 		}
 		
-		private bool syncExtantVesselOrbit(KMPVessel kvessel, double fromTick, Vessel extant_vessel, double LAN)
+		private bool syncExtantVesselOrbit(KMPVessel kvessel, Vessel extant_vessel)
 		{
 			Log.Debug("updating Orbit: " + extant_vessel.id);
 			bool killedForCollision = false;
-			bool victimAvailable = true;
-			Vessel victim = FlightGlobals.ActiveVessel;
-			
-			foreach (ManeuverNode mNode in victim.patchedConicSolver.maneuverNodes)
-			{
-				if (mNode.attachedGizmo != null)
-				{
-					ManeuverGizmo mGizmo = mNode.attachedGizmo;
-					if (mGizmo.handleAntiNormal.Drag) { victimAvailable = false; break; }
-					if (mGizmo.handleNormal.Drag) { victimAvailable = false; break; }
-					if (mGizmo.handlePrograde.Drag) { victimAvailable = false; break; }
-					if (mGizmo.handleRadialIn.Drag) { victimAvailable = false; break; }
-					if (mGizmo.handleRadialOut.Drag) { victimAvailable = false; break; }
-					if (mGizmo.handleRetrograde.Drag) { victimAvailable = false; break; }
-				}
-			}
-			
-			if (victimAvailable)
-			{
+
 				double tick = Planetarium.GetUniversalTime();
 				Log.Debug("current vel mag: " + extant_vessel.orbit.getOrbitalVelocityAtUT(tick).magnitude);
-				
 				extant_vessel.GoOnRails();
-				
+
+				Vector3 localPositionTransform = kvessel.localPosition;
+				Vector3 localVelocityTransform = kvessel.localVelocity;
+
 	            //Update orbit
-				Planetarium.SetUniversalTime(fromTick);
-				Vector3 orbit_pos = kvessel.translationFromBody;
-	            Vector3 orbit_vel = kvessel.worldVelocity;
-				
-	            //Swap the y and z values of the orbital position/velocities
-	            float temp = orbit_pos.y;
-	            orbit_pos.y = orbit_pos.z;
-	            orbit_pos.z = temp;
-				
-	            temp = orbit_vel.y;
-	            orbit_vel.y = orbit_vel.z;
-	            orbit_vel.z = temp;
-				
-				OrbitDriver orbitDriver = extant_vessel.orbitDriver;
-				orbitDriver.orbit.UpdateFromStateVectors(orbit_pos, orbit_vel, kvessel.mainBody, fromTick);
-				Orbit newOrbit = orbitDriver.orbit;
-				newOrbit.LAN = LAN;
-				
-				OrbitDriver oldDriver = victim.orbitDriver;
-				victim.patchedConicSolver.obtDriver = orbitDriver;
-				victim.orbitDriver = orbitDriver;
-				victim.orbitDriver.UpdateOrbit();
-				victim.patchedConicSolver.Update();
-				
-				newOrbit = victim.patchedConicSolver.orbit;
-				
+				Orbit newOrbit = new Orbit ();
+				newOrbit.UpdateFromStateVectors(localPositionTransform, localVelocityTransform, kvessel.mainBody, kvessel.referenceUT);
 				if (newOrbit.referenceBody == null) newOrbit.referenceBody = FlightGlobals.Bodies.Find(b => b.name == "Sun");
-//				Log.Debug("aP:" + newOrbit.activePatch);
-//				Log.Debug("eUT:" + newOrbit.EndUT);
-//				Log.Debug("sUT:" + newOrbit.StartUT);
-//				Log.Debug("gOA:" + newOrbit.getObtAtUT(tick));
-//				Log.Debug("nPnull:" + (newOrbit.nextPatch == null));
-//				Log.Debug("pPnull:" + (newOrbit.previousPatch == null));
-//				Log.Debug("sI:" + newOrbit.sampleInterval);
-//				Log.Debug("UTsoi:" + newOrbit.UTsoi);
-//				Log.Debug("body:" + newOrbit.referenceBody.name);
-				
-				killedForCollision = checkOrbitForCollision(newOrbit,tick,fromTick);
-				
+				OrbitDriver newOrbitDriver = new OrbitDriver ();
+				newOrbitDriver.orbit = newOrbit;
+				newOrbitDriver.UpdateOrbit();
+				killedForCollision = checkOrbitForCollision(newOrbit,tick,kvessel.adjustedUT);
+
 				if (newOrbit.EndUT > 0)
 				{
 					double lastEndUT =  newOrbit.EndUT;
@@ -2632,24 +2583,23 @@ namespace KMP
 						Log.Debug("updated to next patch");
 					}
 				}
-				newOrbit.UpdateFromUT(tick);
 				
+				PatchedConicSolver newPatchConicSolver = new PatchedConicSolver ();
+				newPatchConicSolver.obtDriver = newOrbitDriver;
+				newPatchConicSolver.Update ();
+
+				Log.Debug ("Vessel INC:" + newOrbit.inclination);
+				Log.Debug ("Vessel ECC:" + newOrbit.eccentricity);
+				Log.Debug ("Vessel SMA:" + newOrbit.semiMajorAxis);
 				//Swap orbits
-				extant_vessel.orbitDriver = orbitDriver;
-				extant_vessel.orbitDriver.orbit = newOrbit;
-				victim.patchedConicSolver.obtDriver = oldDriver;
-				victim.patchedConicRenderer.solver = victim.patchedConicSolver;
-				victim.orbitDriver = oldDriver;
-				victim.orbitDriver.UpdateOrbit();
-				
-				extant_vessel.orbitDriver.pos = extant_vessel.orbit.pos.xzy;
-	            extant_vessel.orbitDriver.vel = extant_vessel.orbit.vel;
-				
-				Planetarium.SetUniversalTime(tick);
+				extant_vessel.orbitDriver = newOrbitDriver;
+				extant_vessel.patchedConicSolver = newPatchConicSolver;
+				Log.Debug ("Extant-Vessel INC:" + extant_vessel.orbit.inclination);
+				Log.Debug ("Extant-Vessel ECC:" + extant_vessel.orbit.eccentricity);
+				Log.Debug ("Extant-Vessel SMA:" + extant_vessel.orbit.semiMajorAxis);
 				Log.Debug("new vel mag: " + extant_vessel.orbit.getOrbitalVelocityAtUT(tick).magnitude);
 				Log.Debug("Orbit updated to target: " + tick);
-			} else { Log.Debug("no victim available!"); }
-			
+			    
 			return !killedForCollision;
 		}
 		
