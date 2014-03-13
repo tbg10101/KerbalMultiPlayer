@@ -31,86 +31,74 @@ namespace KMP
 			get;
 		}
 
-        public Vector3 localDirection
-        {
-            private set;
-            get;
-        }
+		public Orbit orbit
+		{
+			private set;
+			get;
+		}
 
-        public Vector3 localPosition
-        {
-            private set;
-            get;
-        }
+		public Orbit currentOrbit {
+			get {
+				//Orbit doesn't have a copy constructor...
+				Orbit tempOrbit = new Orbit (orbit.inclination, orbit.eccentricity, orbit.semiMajorAxis, orbit.LAN, orbit.argumentOfPeriapsis, orbit.meanAnomalyAtEpoch, orbit.epoch, orbit.referenceBody);
+                //Use the orbit driver to update it.
+                OrbitDriver od = new OrbitDriver();
+                od.orbit = tempOrbit;
+                od.UpdateOrbit();
+				//Update the orbit
+				return tempOrbit;
+			}
+		}
 
-        public Vector3 localVelocity
-        {
-            private set;
-            get;
-        }
-
-        public Vector3 translationFromBody
-        {
-            private set;
-            get;
-        }
-
-        public Vector3 worldDirection
-        {
-            private set;
-            get;
-        }
-
-        public Vector3 worldPosition
+        //orbitWorld methods are for player triangle positions.
+        //We transform them back onto our planet, instead of where kerbin was.
+        public Vector3d orbitWorldPosition
         {
             get
             {
-				if (!orbitValid)
-					return Vector3.zero;
-
-				if (mainBody != null)
-				{
-					if (situationIsGrounded(info.situation))
-					{
-						//Vessel is fixed in relation to body
-						return mainBody.transform.TransformPoint(localPosition);
-					}
-					else
-					{
-						//Calculate vessel's position at the current (real-world) time
-						double time = adjustedUT;
-
-						if (mainBody.referenceBody != null && mainBody.referenceBody != mainBody && mainBody.orbit != null)
-						{
-							//Adjust for the movement of the vessel's parent body
-							Vector3 body_pos_at_ref = mainBody.orbit.getTruePositionAtUT(time);
-							Vector3 body_pos_now = mainBody.orbit.getTruePositionAtUT(Planetarium.GetUniversalTime());
-
-							return body_pos_now + (orbitRenderer.driver.orbit.getTruePositionAtUT(time) - body_pos_at_ref);
-						}
-						else
-						{
-							//Vessel is probably orbiting the sun
-							return orbitRenderer.driver.orbit.getTruePositionAtUT(time);
-						}
-
-					}
-				}
-				else
-					return localPosition;
+                Vector3d bodyPositionChange = Vector3d.zero;
+                if (orbitValid)
+                {
+                    currentOrbit.referenceBody.transform.TransformPoint(orbit.referenceBody.transform.InverseTransformPoint(orbit.pos.xzy));
+                }
+                return Vector3d.zero;
             }
         }
 
-        public Vector3 worldVelocity
+        public Vector3d orbitWorldVelocity
         {
-            private set;
-            get;
+            get
+            {
+                if (orbitValid)
+                {
+                    currentOrbit.referenceBody.transform.TransformDirection(orbit.referenceBody.transform.InverseTransformDirection(orbit.vel.xzy));
+                }
+                return Vector3d.zero;
+            }
+        }
+        //Actual vessel positions in current time frame
+        public Vector3d currentWorldPosition
+        {
+            get
+            {
+                if (orbitValid)
+                {
+                    return currentOrbit.referenceBody.transform.InverseTransformPoint(currentOrbit.pos.xzy);
+                }
+                return Vector3d.zero;
+            }
         }
 
-        public CelestialBody mainBody
+        public Vector3d currentWorldVelocity
         {
-           private set;
-           get;
+            get
+            {
+                if (orbitValid)
+                {
+                    return currentOrbit.referenceBody.transform.TransformDirection(orbit.referenceBody.transform.InverseTransformDirection(orbit.vel.xzy));
+                }
+                return Vector3d.zero;
+            }
         }
 
         public GameObject gameObj
@@ -137,11 +125,24 @@ namespace KMP
 			get;
 		}
 
-		public bool orbitValid
-		{
-			private set;
-			get;
-		}
+        public bool orbitValid
+        {
+            get
+            {
+                if (orbit == null)
+                {
+                    return false;
+                }
+                //Vector3d test_pos = worldPosition;
+                //Vector3d test_vel = worldVelocity;
+                //if (test_pos == Vector3d.zero || test_vel == Vector3d.zero)
+                //{
+                //    return false;
+                //}
+                //return true;
+                return true;
+            }
+        }
 
         public bool shouldShowOrbit
         {
@@ -154,32 +155,12 @@ namespace KMP
             }
         }
 
-		public double referenceUT
-		{
-			private set;
-			get;
-		}
-
-		public double referenceFixedTime
-		{
-			private set;
-			get;
-		}
-
-		public double adjustedUT
-		{
-			get
-			{
-				return referenceUT + (UnityEngine.Time.fixedTime - referenceFixedTime) * info.timeScale;
-			}
-		}
-		
 		public Vessel vesselRef
 		{
 			set;
             get;
 		}
-		
+
         //Methods
 
         public KMPVessel(String vessel_name, String owner_name, Guid _id)
@@ -214,17 +195,6 @@ namespace KMP
             line.material = new Material(Shader.Find("Particles/Alpha Blended Premultiply"));
             line.SetVertexCount(2);
             line.enabled = false;
-
-            //orbitRenderer.forceDraw = true;
-
-            mainBody = null;
-
-            localDirection = Vector3.zero;
-            localVelocity = Vector3.zero;
-            localPosition = Vector3.zero;
-
-            worldDirection = Vector3.zero;
-            worldVelocity = Vector3.zero;
 
         }
 
@@ -304,70 +274,13 @@ namespace KMP
 			}
 		}
 
-        public void setOrbitalData(CelestialBody body, Vector3 local_pos, Vector3 local_vel, Vector3 local_dir) {
-
-            mainBody = body;
-
-			if (mainBody != null)
+        public void setOrbitalData(Orbit new_orbit) {
+            if (new_orbit == null)
             {
-                localPosition = local_pos;
-                translationFromBody = mainBody.transform.TransformPoint(localPosition) - mainBody.transform.position;
-                localDirection = local_dir;
-                localVelocity = local_vel;
-
-				orbitValid = true;
-
-				//Check for invalid values in the physics data
-				if (!situationIsGrounded(info.situation)
-					&& ((localPosition.x == 0.0f && localPosition.y == 0.0f && localPosition.z == 0.0f)
-						|| (localVelocity.x == 0.0f && localVelocity.y == 0.0f && localVelocity.z == 0.0f)
-						|| localPosition.magnitude > mainBody.sphereOfInfluence)
-					)
-				{
-					orbitValid = false;
-				}
-
-				for (int i = 0; i < 3; i++)
-				{
-					if (float.IsNaN(localPosition[i]) || float.IsInfinity(localPosition[i]))
-					{
-						orbitValid = false;
-						break;
-					}
-
-					if (float.IsNaN(localDirection[i]) || float.IsInfinity(localDirection[i]))
-					{
-						orbitValid = false;
-						break;
-					}
-
-					if (float.IsNaN(localVelocity[i]) || float.IsInfinity(localVelocity[i]))
-					{
-						orbitValid = false;
-						break;
-					}
-				}
-
-				if (!orbitValid)
-				{
-                    //Log.Debug("Orbit invalid: " + vesselName);
-					//Spoof some values so the game doesn't freak out
-					localPosition = new Vector3(1000.0f, 1000.0f, 1000.0f);
-					translationFromBody = localPosition;
-					localDirection = new Vector3(1.0f, 0.0f, 0.0f);
-					localVelocity = new Vector3(1.0f, 0.0f, 0.0f);
-				}
-
-				//Calculate world-space properties
-				worldDirection = mainBody.transform.TransformDirection(localDirection);
-				worldVelocity = mainBody.transform.TransformDirection(localVelocity);
-
-				//Update game object transform
-				updateOrbitProperties();
-				updatePosition();
-
+                return;
             }
-
+            orbit = new_orbit;
+            updatePosition();
         }
 
         public void updatePosition()
@@ -375,9 +288,14 @@ namespace KMP
 			if (!orbitValid)
 				return;
 
-            gameObj.transform.localPosition = worldPosition;
+			if (gameObj.transform == null) {
+				return;
+			}
 
-            Vector3 scaled_pos = ScaledSpace.LocalToScaledSpace(worldPosition);
+            gameObj.transform.position = orbitWorldPosition;
+			//gameObj.transform.rotation = worldRotation;
+
+            Vector3 scaled_pos = ScaledSpace.LocalToScaledSpace(orbitWorldPosition);
 
             //Determine the scale of the line so its thickness is constant from the map camera view
 			float apparent_size = 0.01f;
@@ -404,7 +322,8 @@ namespace KMP
 			float scale = (float)(apparent_size * Vector3.Distance(MapView.MapCamera.transform.position, scaled_pos));
 
             //Set line vertex positions
-            Vector3 line_half_dir = worldDirection * (scale * ScaledSpace.ScaleFactor);
+					//needs world direction
+            Vector3 line_half_dir = Vector3.one * (scale * ScaledSpace.ScaleFactor);
 
 			if (pointed)
 			{
@@ -416,38 +335,8 @@ namespace KMP
 				line_half_dir *= 0.5f;
 			}
 
-            line.SetPosition(0, ScaledSpace.LocalToScaledSpace(worldPosition - line_half_dir));
-            line.SetPosition(1, ScaledSpace.LocalToScaledSpace(worldPosition + line_half_dir));
-
-			if (!situationIsGrounded(info.situation))
-				orbitRenderer.driver.orbit.UpdateFromUT(adjustedUT);
-        }
-
-        public void updateOrbitProperties()
-        {
-
-			if (mainBody != null)
-            {
-				
-                Vector3 orbit_pos = translationFromBody;
-                Vector3 orbit_vel = worldVelocity;
-				
-                //Swap the y and z values of the orbital position/velocities because that's the way it goes?
-                float temp = orbit_pos.y;
-                orbit_pos.y = orbit_pos.z;
-                orbit_pos.z = temp;
-				
-                temp = orbit_vel.y;
-                orbit_vel.y = orbit_vel.z;
-                orbit_vel.z = temp;
-				
-                //Update orbit
-                orbitRenderer.driver.orbit.UpdateFromStateVectors(orbit_pos, orbit_vel, mainBody, Planetarium.GetUniversalTime());
-				
-				referenceUT = Planetarium.GetUniversalTime();
-				referenceFixedTime = UnityEngine.Time.fixedTime;
-                
-            }
+            line.SetPosition(0, ScaledSpace.LocalToScaledSpace(orbitWorldPosition - line_half_dir));
+            line.SetPosition(1, ScaledSpace.LocalToScaledSpace(orbitWorldPosition + line_half_dir));
         }
 
         public void updateRenderProperties(bool force_hide = false)
